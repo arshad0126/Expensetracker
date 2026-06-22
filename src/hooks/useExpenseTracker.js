@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { STORAGE_KEY } from '../constants';
 import { bumpVersion, persistToStorage, loadFromStorage, clearStorage } from '../utils/helpers';
+import { supabase, isSupabaseConfigured } from '../utils/supabaseClient';
 
 export function useExpenseTracker() {
   const [tripData, setTripData] = useState({ state: null, log: [] });
@@ -8,8 +9,19 @@ export function useExpenseTracker() {
   const [activeDay, setActiveDay] = useState(0);
   const flashTimeoutRef = useRef(null);
   
+  // Auth and Sync state
+  const [user, setUser] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [cloudTripId, setCloudTripId] = useState(null);
+
   // Track if initial load is completed to prevent overwriting storage on mount
   const isLoadedRef = useRef(false);
+
+  // Keep latest tripData in a ref to prevent stale closures in async effects
+  const tripDataRef = useRef(tripData);
+  useEffect(() => {
+    tripDataRef.current = tripData;
+  }, [tripData]);
 
   // Load on mount
   useEffect(() => {
@@ -22,15 +34,118 @@ export function useExpenseTracker() {
       setActiveDay(stored.state.currentDay - 1);
     }
     isLoadedRef.current = true;
-    // If nothing stored → App.jsx will show Setup screen
   }, []);
 
-  // Save to localStorage when state or log changes (after initial load)
+  // Sync with Supabase Auth state
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
+    const fetchRemoteTrip = async (u) => {
+      setIsSyncing(true);
+      try {
+        const { data, error } = await supabase
+          .from('trips')
+          .select('*')
+          .order('updated_at', { ascending: false })
+          .limit(1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          const remote = data[0];
+          setTripData({ state: remote.state_data, log: remote.log_data });
+          setActiveDay(remote.state_data.currentDay - 1);
+          setCloudTripId(remote.id);
+        } else if (tripDataRef.current.state) {
+          // Sync local trip to cloud if no remote trip exists
+          const local = tripDataRef.current;
+          const { data: inserted, error: insertError } = await supabase
+            .from('trips')
+            .insert({
+              user_id: u.id,
+              trip_name: local.state.tripName,
+              state_data: local.state,
+              log_data: local.log
+            })
+            .select();
+
+          if (insertError) throw insertError;
+          if (inserted && inserted.length > 0) {
+            setCloudTripId(inserted[0].id);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching remote trip:', err);
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+
+    // Get active session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const u = session?.user || null;
+      setUser(u);
+      if (u) fetchRemoteTrip(u);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const u = session?.user || null;
+      setUser(u);
+      if (event === 'SIGNED_IN' && u) {
+        fetchRemoteTrip(u);
+      } else if (event === 'SIGNED_OUT') {
+        setCloudTripId(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Save to localStorage and Supabase when state or log changes (after initial load)
   useEffect(() => {
     if (isLoadedRef.current && tripData.state) {
       persistToStorage(STORAGE_KEY, tripData.state, tripData.log);
+
+      // Upload changes to Supabase if logged in
+      if (isSupabaseConfigured && user) {
+        const syncToCloud = async () => {
+          setIsSyncing(true);
+          try {
+            if (cloudTripId) {
+              const { error } = await supabase
+                .from('trips')
+                .update({
+                  trip_name: tripData.state.tripName,
+                  state_data: tripData.state,
+                  log_data: tripData.log
+                })
+                .eq('id', cloudTripId);
+              if (error) throw error;
+            } else {
+              const { data, error } = await supabase
+                .from('trips')
+                .insert({
+                  user_id: user.id,
+                  trip_name: tripData.state.tripName,
+                  state_data: tripData.state,
+                  log_data: tripData.log
+                })
+                .select();
+              if (error) throw error;
+              if (data && data.length > 0) {
+                setCloudTripId(data[0].id);
+              }
+            }
+          } catch (err) {
+            console.error('Real-time cloud sync failed:', err);
+          } finally {
+            setIsSyncing(false);
+          }
+        };
+        syncToCloud();
+      }
     }
-  }, [tripData]);
+  }, [tripData, user, cloudTripId]);
 
   // Clean up timeout on unmount
   useEffect(() => {
@@ -124,18 +239,33 @@ export function useExpenseTracker() {
     });
   }, []);
 
-  const resetAll = useCallback(() => {
+  const resetAll = useCallback(async () => {
     if (!window.confirm('Reset everything and start a new trip? This cannot be undone.')) return;
     clearStorage(STORAGE_KEY);
+
+    if (isSupabaseConfigured && user && cloudTripId) {
+      setIsSyncing(true);
+      try {
+        await supabase.from('trips').delete().eq('id', cloudTripId);
+      } catch (err) {
+        console.error('Failed to delete cloud trip:', err);
+      } finally {
+        setIsSyncing(false);
+      }
+    }
+
     setTripData({ state: null, log: [] });
+    setCloudTripId(null);
     setActiveDay(0);
-  }, []);
+  }, [user, cloudTripId]);
 
   return {
     state: tripData.state,
     log: tripData.log,
     savedMsg,
     activeDay,
+    user,
+    isSyncing,
     initTrip,
     switchDay,
     addEntry,
@@ -143,5 +273,6 @@ export function useExpenseTracker() {
     saveEdit,
     saveDayLabel,
     resetAll,
+    setUser,
   };
 }

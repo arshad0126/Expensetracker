@@ -1,7 +1,7 @@
 import React from 'react';
 import { C } from '../constants';
 
-export default function Header({ tripName, destination, version, savedMsg, onVersionClick, onReset }) {
+export default function Header({ tripName, destination, version, savedMsg, onVersionClick, onReset, user, onCloudClick, isSyncing }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
       <div>
@@ -14,6 +14,19 @@ export default function Header({ tripName, destination, version, savedMsg, onVer
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         {savedMsg && <span style={{ fontSize: 11, color: C.accentSoft, fontWeight: 700 }}>{savedMsg}</span>}
+        
+        {/* Cloud Sync Status Button */}
+        <button onClick={onCloudClick} title={user ? `Synced as ${user.email}` : "Sync to cloud"}
+          style={{
+            background: user ? `${C.accent}14` : 'none',
+            border: `1px solid ${user ? C.accentSoft + '55' : C.border}`,
+            color: user ? C.accent : C.muted,
+            borderRadius: 8, padding: '5px 10px', cursor: 'pointer',
+            fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4
+          }}>
+          {isSyncing ? '🔄' : user ? '☁️ ✓' : '☁️ Sync'}
+        </button>
+
         <span onClick={onVersionClick} title="Version history"
           style={{ fontSize: 11, color: C.accent, cursor: 'pointer', padding: '4px 10px', background: C.accentLight, borderRadius: 20, fontWeight: 700, border: `1px solid ${C.accentSoft}44` }}>
           v{version}

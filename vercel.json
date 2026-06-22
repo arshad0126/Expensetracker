@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/((?!api/|static/|logo.svg|manifest.json|service-worker.js).*).*",
+      "destination": "/index.html"
+    }
+  ]
+}

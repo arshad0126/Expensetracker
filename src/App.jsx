@@ -14,14 +14,16 @@ import EntryTable   from './components/EntryTable';
 import SpendChart   from './components/SpendChart';
 import SummaryTab   from './components/SummaryTab';
 import BreakdownTab from './components/BreakdownTab';
+import AuthModal    from './components/AuthModal';
 
 export default function App() {
   const [tab,     setTab]     = useState('daily');
   const [showLog, setShowLog] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
 
   const {
-    state, log, savedMsg, activeDay,
-    initTrip, switchDay, addEntry, deleteEntry, saveEdit, saveDayLabel, resetAll,
+    state, log, savedMsg, activeDay, user, isSyncing,
+    initTrip, switchDay, addEntry, deleteEntry, saveEdit, saveDayLabel, resetAll, setUser,
   } = useExpenseTracker();
 
   // ── Show setup screen if no trip initialized yet ──
@@ -43,6 +45,9 @@ export default function App() {
         savedMsg={savedMsg}
         onVersionClick={() => setShowLog(v => !v)}
         onReset={resetAll}
+        user={user}
+        onCloudClick={() => setAuthOpen(true)}
+        isSyncing={isSyncing}
       />
 
       {showLog && <VersionLog log={log} />}
@@ -96,6 +101,14 @@ export default function App() {
           grandTotal={grandTotal}
         />
       )}
+
+      {/* ── AUTH MODAL ── */}
+      <AuthModal
+        isOpen={authOpen}
+        onClose={() => setAuthOpen(false)}
+        onAuthSuccess={setUser}
+        currentSessionUser={user}
+      />
 
     </div>
   );
