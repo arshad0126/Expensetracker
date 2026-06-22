@@ -1,12 +1,18 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { C, CATEGORIES } from '../constants';
+import { C, CATEGORIES, CATEGORY_COLORS } from '../constants';
 import { fmt, computeTotal } from '../utils/helpers';
+
+const TH = { textAlign: 'left', padding: '8px 10px', fontWeight: 700 };
+const TD = { padding: '11px 10px', verticalAlign: 'middle' };
 
 export default function SummaryTab({ state, dailyTotal, grandTotal, fixedTotal, onDayClick }) {
   const { days, fixed, people } = state;
   const dayTotals  = days.map(d => computeTotal(d.entries));
-  const highestDay = dayTotals.indexOf(Math.max(...dayTotals.filter(t => t > 0)));
+  const activeDaysWithSpend = dayTotals.filter(t => t > 0);
+  const highestDay = activeDaysWithSpend.length > 0 
+    ? dayTotals.indexOf(Math.max(...activeDaysWithSpend)) 
+    : -1;
   const chartData  = days.map(d => ({ name: d.date || d.label, total: computeTotal(d.entries) }));
   const perPerson  = people > 1 ? Math.round(grandTotal / people) : null;
 
@@ -30,6 +36,8 @@ export default function SummaryTab({ state, dailyTotal, grandTotal, fixedTotal, 
             const tot    = computeTotal(d.entries);
             const topCat = CATEGORIES.map(c => ({ c, amt: d.entries.filter(e => e.category === c).reduce((s, e) => s + e.amount, 0) })).sort((a, b) => b.amt - a.amt)[0];
             const isHigh = i === highestDay && tot > 0;
+            const catIdx = topCat ? CATEGORIES.indexOf(topCat.c) : -1;
+            const catColor = catIdx !== -1 ? CATEGORY_COLORS[catIdx] : C.accent;
             return (
               <tr key={i} onClick={() => onDayClick(i)} style={{ borderBottom: `1px solid ${C.surface}`, cursor: 'pointer', background: isHigh ? 'rgba(45,106,79,0.04)' : 'transparent' }}>
                 <td style={{ ...TD, fontWeight: 700 }}>
@@ -38,7 +46,15 @@ export default function SummaryTab({ state, dailyTotal, grandTotal, fixedTotal, 
                   {isHigh && <span style={{ fontSize: 9, background: C.accentLight, color: C.accent, borderRadius: 4, padding: '1px 5px', fontWeight: 700, marginLeft: 6 }}>HIGHEST</span>}
                 </td>
                 <td style={{ ...TD, color: C.muted }}>{d.entries.length}</td>
-                <td style={TD}>{topCat && topCat.amt > 0 ? <span style={{ background: C.accentLight, borderRadius: 5, padding: '2px 8px', fontSize: 10, color: C.accent, fontWeight: 600 }}>{topCat.c}</span> : <span style={{ color: C.border }}>—</span>}</td>
+                <td style={TD}>
+                  {topCat && topCat.amt > 0 ? (
+                    <span style={{ background: `${catColor}1c`, borderRadius: 5, padding: '2px 8px', fontSize: 10, color: catColor, fontWeight: 600 }}>
+                      {topCat.c}
+                    </span>
+                  ) : (
+                    <span style={{ color: C.border }}>—</span>
+                  )}
+                </td>
                 <td style={{ ...TD, fontWeight: 800 }}>{tot > 0 ? fmt(tot) : '—'}</td>
               </tr>
             );
@@ -105,6 +121,3 @@ export default function SummaryTab({ state, dailyTotal, grandTotal, fixedTotal, 
     </div>
   </>);
 }
-
-const TH = { textAlign: 'left', padding: '8px 10px', fontWeight: 700 };
-const TD = { padding: '11px 10px', verticalAlign: 'middle' };

@@ -60,7 +60,8 @@ export function buildInitialState(setup) {
   const days = Array.from({ length: totalDays }, (_, i) => {
     let dateLabel = `Day ${i + 1}`;
     if (startDate) {
-      const d = new Date(startDate);
+      const [year, month, day] = startDate.split('-').map(Number);
+      const d = new Date(year, month - 1, day);
       d.setDate(d.getDate() + i);
       dateLabel = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
     }

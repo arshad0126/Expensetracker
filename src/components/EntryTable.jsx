@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { C, CATEGORIES } from '../constants';
+import { C, CATEGORIES, CATEGORY_COLORS } from '../constants';
 import { fmt } from '../utils/helpers';
 
 const IS  = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px', color: C.text, fontSize: 13, outline: 'none' };
@@ -29,8 +29,8 @@ export default function EntryTable({ day, activeDayIdx, onAdd, onDelete, onSaveE
   }
 
   function handleSaveEdit() {
-    onSaveEdit(editingId, editVal, activeDayIdx);
-    setEditingId(null);
+    const ok = onSaveEdit(editingId, editVal, activeDayIdx);
+    if (ok !== false) setEditingId(null);
   }
 
   const catBreakdown = CATEGORIES
@@ -110,7 +110,17 @@ export default function EntryTable({ day, activeDayIdx, onAdd, onDelete, onSaveE
                   <>
                     <td style={{ ...TD, color: C.muted, fontSize: 11 }}>{j + 1}</td>
                     <td style={{ ...TD, fontWeight: 500 }}>{entry.desc}</td>
-                    <td style={TD}><span style={{ background: C.accentLight, borderRadius: 5, padding: '2px 7px', fontSize: 10, color: C.accent, fontWeight: 600 }}>{entry.category}</span></td>
+                    <td style={TD}>
+                      {(() => {
+                        const catIdx = CATEGORIES.indexOf(entry.category);
+                        const catColor = catIdx !== -1 ? CATEGORY_COLORS[catIdx] : C.accent;
+                        return (
+                          <span style={{ background: `${catColor}1c`, borderRadius: 5, padding: '2px 7px', fontSize: 10, color: catColor, fontWeight: 600 }}>
+                            {entry.category}
+                          </span>
+                        );
+                      })()}
+                    </td>
                     <td style={{ ...TD, fontWeight: 700, color: entry.amount === 0 ? C.muted : C.text }}>{fmt(entry.amount)}</td>
                     <td style={TD}>
                       <button onClick={() => startEdit(entry)} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', marginRight: 4, fontSize: 13 }}>✏️</button>
